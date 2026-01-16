@@ -143,7 +143,7 @@ spiny_counts <- tidydata %>%
   
   # Add `counts` and `mean_size` columns
   summarize(counts = n(),
-            mean_size = mean(size_mm, na.rm = TRUE)) %>% 
+            mean_size_mm = mean(size_mm, na.rm = TRUE)) %>% 
   
   # Add `mpa` variable
   mutate(mpa = case_when(
@@ -224,6 +224,32 @@ ggplot(data = spiny_counts, aes(x = mpa, y = mean_size)) +
 
 ```{r}
 # USE: gt_summary::tbl_summary()
+lobster_summary <- spiny_counts %>% 
+  drop_na(counts, mean_size_mm) %>% 
+  gtsummary::tbl_summary(                   # gtsummary SPECIFICALLY makes statistical tables
+    # Select how we want to group columns
+    by = mpa,
+    # Variables to include
+    include = c(counts, mean_size_mm),
+    # Display the mean and standard deviation
+    statistic = list(all_continuous() ~ "{mean}")
+  )
+
+lobster_summary %>% 
+  as_gt() %>% 
+  tab_header(
+   title = "Mean Spiny Lobster Counts and Sizes",
+   subtitle = "By Treatment and Control Groups"
+ ) %>% cols_label(
+  label = "Variable",
+  stat_1 = "MPA",
+  stat_2 = "Non-MPA"# Could change control and treatment labels using "stat_1" and "stat_2"
+) %>% 
+  
+  # Add a source note at the bottom
+tab_source_note(
+  source_note = "Note: Data from Reed D. 2019, SBC LTER, Environmental Data Initiative"
+)
 ```
 
 ------------------------------------------------------------------------
@@ -237,12 +263,12 @@ ggplot(data = spiny_counts, aes(x = mpa, y = mean_size)) +
 ```{r}
 # NOTE: We will not evaluate/interpret model fit in this assignment (e.g., R-square)
 
-m1_ols <- 
+m1_ols <- lm(data = spiny_counts, formula = counts ~ treat)
 
 summ(m1_ols, model.fit = FALSE) 
 
 ```
-
+The coefficient estimates 
 **c.** Check the model assumptions using the `check_model` function from the `performance` package
 
 **d.** Explain the results of the 4 diagnostic plots. Why are we getting this result?
@@ -283,7 +309,11 @@ check_model(m1_ols, check = "pp_check")
 
 #HINT2: For the second glm() argument `family` use the following specification option `family = poisson(link = "log")`
 
-m2_pois <- 
+m2_pois <- glm(data = spiny_counts, 
+               formula = counts ~ treat,
+               family = poisson(link = "log"))
+
+summ(m2_pois)
 
 ```
 
@@ -317,7 +347,9 @@ library(MASS) ## NOTE: The `select()` function is masked. Use: `dplyr::select()`
 
 # NOTE: The `glm.nb()` function does not require a `family` argument
 
-m3_nb <- 
+m3_nb <- glm.nb(data = spiny_counts, formula = counts ~ treat)
+
+summ(m3_nb)
 
 ```
 
@@ -349,12 +381,12 @@ check_model(m3_nb)
 
 ```{r}
 
-export_summs(# ADD MODELS
+export_summs(m1_ols, m2_pois, m3_nb,
              model.names = c("OLS","Poisson", "NB"),
              statistics = "none")
 
 ```
-
+Yes, tis robust.
 ------------------------------------------------------------------------
 
 #### Step 7: Building intuition - fixed effects
@@ -369,6 +401,8 @@ export_summs(# ADD MODELS
 **c.** Take a look at the regression output. Each coefficient provides a comparison or the difference in means for a specific sub-group in the data. Informally, describe the what the model has estimated at a conceptual level (NOTE: you do not have to interpret coefficients individually)
 
 **d.** Explain why the main effect for treatment is negative? *Does this result make sense?
+
+Yes, because you would still be adding on the year term and the interaction term, which in most cases would make the treatment effect ultimately positive. An exception to this is 2013, but since that was the first year after the MPAs were enacted, it is not completely shocking that the treatment effect is negative.
 
 ```{r}
 
@@ -388,6 +422,8 @@ summ(m5_fixedeffs, model.fit = FALSE)
 **e.** Look at the model predictions: Use the `interact_plot()` function from package `interactions` to plot mean predictions by year and treatment status. 
 
 **f.** Re-evaluate your responses (c) and (b) above. 
+
+My responses to (c) and (b) still hold. As the plot shows, the areas that are now MPAs started out with lower lobster counts, explaining why in 2013, being in the treatment group correlated with a smaller lobster count. There is a positive trend in both the treatment and control groups, and in 2016 lobster counts at MPA sites actually dip below that of the non-MPA sites (but then regain superiority in the following year).
 
 ```{r}
 
@@ -409,9 +445,15 @@ The plot should have...
 # Hint 1: Group counts by `year` and `mpa` and calculate the `mean_count`
 # Hint 2: Convert variable `year` to a factor
 
-plot_counts <- 
+plot_counts <- ff_counts %>% 
+  group_by(year, mpa) %>% 
+  summarize(mean_count = mean(counts, na.rm = TRUE))
 
-# plot_counts %>% ggplot() ...
+plot_counts %>% 
+  ggplot(aes(x = year, y = mean_count, color = mpa, group = mpa)) +
+  geom_line() +
+  geom_point()
+
 ```
 
 ------------------------------------------------------------------------
@@ -419,12 +461,26 @@ plot_counts <-
 #### Step 8: Reconsider causal identification assumptions
 
 a. Discuss whether you think `spillover effects` are likely in this research context (see Glossary of terms; https://docs.google.com/document/d/1RIudsVcYhWGpqC-Uftk9UTz3PIq6stVyEpT44EPNgpE/edit?usp=sharing)
+
+Yes, spillover effects are very likely in this case. Because MPAs have no physical boundary between them, spiny lobsters can easily travel in between treatment and control sites, affecting results depending on their location during time of sampling.
+
 b. Explain why spillover is an issue for the identification of causal effects
+
+The spillover effect is an issue because it reduces the difference between the control and treatment results. It prohibits the control from being a true control, since the treatment *does* have an effect on it. Without an accurate baseline, the impact of the treatment is muddled.
+
 c. How does spillover relate to impact in this research setting?
+
+Because there is no exact control/baseline for measuring MPA effectiveness, the perceived impact of MPAs may be hindered. This means results are less impactful than what they might actually be.
+
 d. Discuss the following causal inference assumptions in the context of the MPA treatment effect estimator. Evaluate if each of the assumption are reasonable: 
     
     1) SUTVA: Stable Unit Treatment Value assumption 
+    
+    This assumption suggests that MPA status (treatment) of a site would not effect have an effect on another sites lobster count. The sites are not directly next to each other, though they are quite close. Additionally, the two MPA sites -- Isla Vista and Naples -- are located next to each other, relative to the other sites. It is possible that ecological health of one area *could* have an impact on the health (or spiny lobster count) of another, as the ocean's systems are very interconnected. Therefore, I do not believe that this assumption is completely met in this study (though meeting it, might reduce ceteris pareibus).
+    
     2) Excludability assumption
+    
+    The excludability assumption suggests that MPA status only affects spiny lobster count through the mechanism of them reducing human activities that impact their populations. From my knowledge of MPAs and their regulations, it seems that this assumption is reasonable. 
 
 ------------------------------------------------------------------------
 

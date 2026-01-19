@@ -37,7 +37,7 @@ knitr::opts_chunk$set(eval=FALSE, warning = FALSE, message = FALSE )
 ----------------------------------------------------------------------
 
 ```{r}
-
+# Load all necessary libraries
 library(tidyverse)
 library(here)
 library(janitor)
@@ -47,6 +47,8 @@ library(jtools)
 library(gt)
 library(gtsummary)
 library(interactions) 
+library(ggridges)
+library(geomtextpath)
 
 ```
 
@@ -138,8 +140,11 @@ Create new `df` named `spiny_counts`
 
 spiny_counts <- tidydata %>% 
   
+  # Dropping NAs in mean_size
+  drop_na(size_mm) %>% 
+  
   # Create rows with all site-year-transect combinations
-  group_by(site, year, transect) %>% 
+  group_by(reef, year, transect) %>% 
   
   # Add `counts` and `mean_size` columns
   summarize(counts = n(),
@@ -147,7 +152,7 @@ spiny_counts <- tidydata %>%
   
   # Add `mpa` variable
   mutate(mpa = case_when(
-    site %in% c("NAPL", "IVEE") ~ "MPA",
+    reef %in% c("Naples", "Isla Vista") ~ "MPA",
     TRUE ~ "non_MPA"),
     
   # Add `treatment` variable based on `mpa`
@@ -176,35 +181,101 @@ spiny_counts <- tidydata %>%
 
 Create plots displaying the distribution of lobster **counts**:
 
+```{r}
+# Save plot colors
+mpa <- "#311596"
+non_mpa <- "#961e15"
+stat_label <- "#4a4659"
+neutral_green <- "#46594a"
+```
+
+
 1) grouped by reef site  
 ```{r}
-library(geomtextpath)
-# Plot 1: 
-
-mean <- mean(spiny_counts$counts, na.rm = TRUE)
-
-ggplot(data = spiny_counts, aes(x = counts, y = site)) +
- geom_density_ridges() +
-  geom_labelvline(xintercept = mean, color = "red", label = "Mean") +
-  labs(color = "Mean")
+# Plot 1: Ridge Plot 
+ggplot(data = spiny_counts, aes(x = counts, y = reef, 
+                                fill = mpa, color = mpa)) +
+  
+  # Add ridge plot layer
+ geom_density_ridges(scale = 2, alpha = 0.75) +
+  
+  # Add line of mean value
+  geom_labelvline(xintercept = mean(spiny_counts$counts), 
+                  color = stat_label, label = "Overall Mean",
+                  size = 3) +
+  
+  # Plot labels
+  labs(title = "California Spiny Lobster Abundance, by Reef",
+       x = "Lobster Count",
+       y = " ",
+       fill = "Treatment") +
+  
+  # Custom colors and remove redundant legends
+  scale_color_manual(values = c(non_mpa, mpa), guide = FALSE) +
+  scale_fill_manual(values = c(non_mpa, mpa)) +
+  
+theme_light()
 ```
 
 2) grouped by MPA status
 ```{r}
-# Plot 2: 
-library(ggridges)
-ggplot(data = spiny_counts, aes(x = mpa)) +
-  geom_histogram(stat = "count") +
-  coord_flip()
+# Median by treatment
+
+median_mpa <- median(spiny_counts[spiny_counts$mpa == "MPA",]$counts) 
+median_non_mpa <- median(spiny_counts[spiny_counts$mpa == "non_MPA",]$counts) 
+
+# Plot 2: Histogram
+
+ggplot(data = spiny_counts, aes(x = counts, fill = mpa)) +
+  
+  # Create histogram
+  geom_histogram(alpha = 0.75) +
+
+ # Add median value line for both treatments
+  geom_labelvline(xintercept = median_mpa, 
+                  color = mpa, label = "MPA Median",
+                  size = 3) +
+  
+  geom_labelvline(xintercept = median_non_mpa, 
+                  color = non_mpa, label = "Non-MPA Median",
+                  size = 3) +
+  
+  # Plot labels
+  labs(title = "California Spiny Lobster Abundance, by Treatment",
+       x = "Lobster Count",
+       y = " ",
+       fill = "Treatment") +
+  
+  # Custom colors and remove redundant legends
+  scale_color_manual(values = c(non_mpa, mpa), guide = FALSE) +
+  scale_fill_manual(values = c(non_mpa, mpa)) +
+  
+theme_light()
 ```
 
 
 3) grouped by year
 
 ```{r}
-# Plot 3: 
+# Plot 3: Violin Plot
 ggplot(data = spiny_counts, aes(x = as.factor(year), y = counts)) +
-  geom_violin(draw_quantiles = c(0.25,0.5, 0.75))
+  
+  # Add violin plot layer
+  geom_violin(draw_quantiles = c(0.25,0.5, 0.75), # Plot IQR
+              color = neutral_green,
+              fill = neutral_green,
+              alpha = 0.5) +
+  
+  # Add title and labels
+  labs(title = "California Spiny Lobster Abundance, by Year",
+       x = "Year",
+       y = "Lobster Count",
+       caption = "The 25th, 50th, and 75th quantiles, by year, are represented within each violin plot.") +
+  
+  # Attempt to position caption on the left
+  theme(plot.caption = element_text(hjust = 0)) +
+
+  theme_light()
 ```
 
 
@@ -213,11 +284,30 @@ Create a plot of lobster **size** :
 4) You choose the grouping variable(s)!
 
 ```{r}
-# Plot 4:
-ggplot(data = spiny_counts, aes(x = mpa, y = mean_size)) +
-  geom_boxplot(alpha = 0.5) +
-  geom_jitter(size = 2, color = "blue")
+# Plot 4: Jitter Plot, by Treatment
+ggplot(data = spiny_counts, aes(x = mpa, y = mean_size_mm,
+                                color = mpa, fill = mpa)) +
+  
+  # Add boxplot layer first so it plots below
+  geom_boxplot(alpha = 0.5,     
+               outlier.shape = NA) + # Remove outliers so they are not double plotted
+  
+  # Add jitter layer on top
+  geom_jitter(size = 2) +
+  
+  # Custom colors and remove redundant legends
+  scale_color_manual(values = c(non_mpa, mpa), guide = FALSE) +
+  scale_fill_manual(values = c(non_mpa, mpa)) +
+  
+  # Add title and labels
+  labs(title = "California Spiny Lobster Size, by MPA Status",
+       x = " ",
+       y = "Mean Size (mm)",
+       fill = "Treatment") +
+  
+  theme_light()
     
+# Boxplots are plotted alongside the jitter plot to offer information on the respective medians and IQRs
 ```
 
 **c.** Compare means of the outcome by treatment group. Using the `tbl_summary()` function from the package [`gt_summary`](https://www.danieldsjoberg.com/gtsummary/articles/tbl_summary.html) 

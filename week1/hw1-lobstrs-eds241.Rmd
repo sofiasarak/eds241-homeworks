@@ -312,23 +312,29 @@ ggplot(data = spiny_counts, aes(x = mpa, y = mean_size_mm,
 
 **c.** Compare means of the outcome by treatment group. Using the `tbl_summary()` function from the package [`gt_summary`](https://www.danieldsjoberg.com/gtsummary/articles/tbl_summary.html) 
 
+
 ```{r}
 # USE: gt_summary::tbl_summary()
 
-# Optimize df for analysis
-spiny_counts <- spiny_counts %>% 
-  drop_na(counts, mean_size_mm) %>% 
-  mutate(counts = as.numeric(counts))
-
-# Create initial summary table
+# Create summary table
 lobster_summary <- spiny_counts %>% 
-  group_by(mpa) %>% 
-  summarize(counts = round(mean(counts, na.rm = TRUE), 2),
-            size_mm = round(mean(mean_size_mm, na.rm = TRUE), 2)) %>% 
-  gt() # Save as gt object
+  gtsummary::tbl_summary( 
+    
+    # Group by mpa
+    by = mpa,
+    
+    # Variables to include
+    
+    include = c(counts, mean_size_mm),
+    
+    # Display the mean and standard deviation
+    statistic = list(all_continuous() ~ "{mean}")) 
+
 
 # Apply gt customizations
 lobster_gt <- lobster_summary %>% 
+  
+  as_gt() %>% 
   
   # Add title and subtitle
   tab_header(
@@ -338,9 +344,9 @@ lobster_gt <- lobster_summary %>%
  
   # Column labels
 cols_label(
-  mpa = "Treatment",
-  counts = "Count",
-  size_mm = "Size (mm)"# Could change control and treatment labels using "stat_1" and "stat_2"
+  label = "Variable",
+  stat_1 = "MPA",
+  stat_2 = "Non-MPA"# Could change control and treatment labels using "stat_1" and "stat_2"
 ) %>% 
   
   # Add a source note

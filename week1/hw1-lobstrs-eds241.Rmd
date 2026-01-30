@@ -1,15 +1,17 @@
 ---
 title: "Assignment 1"
-subtitle: "California Spiny Lobster (*Panulirus Interruptus*): Assessing the Impact of Marine Protected Areas (MPAs) at 5 Reef Sites in Santa Barbara County" 
-author: "EDS 241 / ESM 244 (**Due: 1/17**)"
+author: 'EDS 241 / ESM 244 (**Due: 1/17**)'
 date: "1/8/26"
-output: 
-    html_document:
-      theme: flatly
+output:
+  pdf_document: default
+  html_document:
+    theme: flatly
+subtitle: 'California Spiny Lobster (*Panulirus Interruptus*): Assessing the Impact
+  of Marine Protected Areas (MPAs) at 5 Reef Sites in Santa Barbara County'
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(eval=FALSE, warning = FALSE, message = FALSE )
+knitr::opts_chunk$set(eval=TRUE, warning = FALSE, message = FALSE )
 ```
 
 ------------------------------------------------------------------------
@@ -62,13 +64,13 @@ library(geomtextpath)
 
 ### **Introduction**
 
-You're about to dive into some deep data collected from five reef sites in Santa Barbara County, all about the abundance of California spiny lobsters! 🦞 Data was gathered by divers annually from 2012 to 2018 across Naples, Mohawk, Isla Vista, Carpinteria, and Arroyo Quemado reefs.
+You're about to dive into some deep data collected from five reef sites in Santa Barbara County, all about the abundance of California spiny lobsters! Data was gathered by divers annually from 2012 to 2018 across Naples, Mohawk, Isla Vista, Carpinteria, and Arroyo Quemado reefs.
 
 Why lobsters? Well, this sample provides an opportunity to evaluate the impact of Marine Protected Areas (MPAs) established on January 1, 2012 (Reed, 2019). Of these five reefs, Naples, and Isla Vista are MPAs, while the other three are not protected (non-MPAs). Comparing lobster health between these protected and non-protected areas gives us the chance to study how commercial and recreational fishing might impact these ecosystems.
 
 We will consider the MPA sites the `treatment` group and use regression methods to explore whether protecting these reefs really makes a difference compared to non-MPA sites (our control group). In this assignment, we’ll think deeply about which causal inference assumptions hold up under the research design and identify where they fall short. 
 
-Let’s break it down step by step and see what the data reveals! 📊
+Let’s break it down step by step and see what the data reveals!
 
 ![](figures/map-5reefs.png)
 
@@ -80,6 +82,8 @@ Let’s break it down step by step and see what the data reveals! 📊
 **a.** Do the control sites (Arroyo Quemado, Carpenteria, and Mohawk) provide a strong counterfactual for our treatment sites (Naples, Isla Vista)? Write a paragraph making a case for why this comparison is ceteris paribus or whether selection bias is likely (be specific!).  
 
 This comparison is not ceteris paribus, but the control sites are relatively good options for the purposes of this evaluation. True ceteris paribus would be taking the *same* exact site and applying both the control and treatment to it, at the same time. Since this is impossible, selecting control sites that are spatially close to the treatment sites (increasing the odds that they are affected by similar currents, temperatures, human activity, and species biodiversity) are a good option. Despite this, selection bias must still be considered, since there are a number of variables *not* controlled for when comparing outside of ceteris paribus.
+
+**REVISION:** It is important to highlight the selection bias that is present in this sample. Most notably, the treatment (MPA status) was not assigned randomly. The two sites that were assigned MPA status -- Naples and Isla Vista -- are treated in this study because the California Department of Fish and Wildlife felt that these areas needed protection. Specifically, that they contained sensitive ecosystems such as rocky reefs and kelp beds, and are even regarded as [ecological hotspots](https://wildlife.ca.gov/Conservation/Marine/MPAs/Naples). Because of this intentional selection of MPA sites, it is possible that the other three control sites may not have the same ecological diversity (or other conditions) as our treatment sites, potentially affecting our results. Thus, it is important to consider the effects of selection bias in our analysis.
 
 ------------------------------------------------------------------------
 
@@ -147,7 +151,8 @@ spiny_counts <- tidydata %>%
   group_by(reef, year, transect) %>% 
   
   # Add `counts` and `mean_size` columns
-  summarize(counts = n(),
+  summarize(counts = sum(count),  ## REVISION: Changed n() to sum(count), 
+                                  # because we want sum of counts not # of rows
             mean_size_mm = mean(size_mm, na.rm = TRUE)) %>% 
   
   # Add `mpa` variable
@@ -193,7 +198,7 @@ neutral_green <- "#46594a"
 1) grouped by reef site  
 ```{r}
 # Plot 1: Ridge Plot 
-ggplot(data = spiny_counts, aes(x = counts, y = reef, 
+ridge_reef <- ggplot(data = spiny_counts, aes(x = counts, y = reef, 
                                 fill = mpa, color = mpa)) +
   
   # Add ridge plot layer
@@ -215,6 +220,8 @@ ggplot(data = spiny_counts, aes(x = counts, y = reef,
   scale_fill_manual(values = c(non_mpa, mpa)) +
   
 theme_light()
+
+ridge_reef
 ```
 
 2) grouped by MPA status
@@ -226,7 +233,7 @@ median_non_mpa <- median(spiny_counts[spiny_counts$mpa == "non_MPA",]$counts)
 
 # Plot 2: Histogram
 
-ggplot(data = spiny_counts, aes(x = counts, fill = mpa)) +
+hist_mpa <- ggplot(data = spiny_counts, aes(x = counts, fill = mpa)) +
   
   # Create histogram
   geom_histogram(alpha = 0.75) +
@@ -251,6 +258,8 @@ ggplot(data = spiny_counts, aes(x = counts, fill = mpa)) +
   scale_fill_manual(values = c(non_mpa, mpa)) +
   
 theme_light()
+
+hist_mpa
 ```
 
 
@@ -258,7 +267,7 @@ theme_light()
 
 ```{r}
 # Plot 3: Violin Plot
-ggplot(data = spiny_counts, aes(x = as.factor(year), y = counts)) +
+violin_year <- ggplot(data = spiny_counts, aes(x = as.factor(year), y = counts)) +
   
   # Add violin plot layer
   geom_violin(draw_quantiles = c(0.25,0.5, 0.75), # Plot IQR
@@ -276,6 +285,8 @@ ggplot(data = spiny_counts, aes(x = as.factor(year), y = counts)) +
   theme(plot.caption = element_text(hjust = 0)) +
 
   theme_light()
+
+violin_year
 ```
 
 
@@ -285,7 +296,7 @@ Create a plot of lobster **size** :
 
 ```{r}
 # Plot 4: Jitter Plot, by Treatment
-ggplot(data = spiny_counts, aes(x = mpa, y = mean_size_mm,
+jitter_size <- ggplot(data = spiny_counts, aes(x = mpa, y = mean_size_mm,
                                 color = mpa, fill = mpa)) +
   
   # Add boxplot layer first so it plots below
@@ -308,6 +319,8 @@ ggplot(data = spiny_counts, aes(x = mpa, y = mean_size_mm,
   theme_light()
     
 # Boxplots are plotted alongside the jitter plot to offer information on the respective medians and IQRs
+
+jitter_size
 ```
 
 **c.** Compare means of the outcome by treatment group. Using the `tbl_summary()` function from the package [`gt_summary`](https://www.danieldsjoberg.com/gtsummary/articles/tbl_summary.html) 
@@ -375,9 +388,11 @@ m1_ols <- lm(data = spiny_counts, formula = counts ~ treat)
 summ(m1_ols, model.fit = FALSE) 
 
 ```
-Intercept: Non-MPA sites in this study have an average lobster count of ~15.
+**REVISION:**
 
-treat: With the addition of the MPA treatment, lobster count increases by ~5, on average.
+Intercept: Non-MPA sites in this study have an average lobster count of ~25.6.
+
+treat: With the addition of the MPA treatment, lobster count increases by ~5.6, on average.
 
 
 **c.** Check the model assumptions using the `check_model` function from the `performance` package
@@ -430,8 +445,10 @@ print(paste("The treat coefficient as percent change is", (round(exp(coef(m2_poi
 ```
 **b.** Interpret the predictor coefficient in your own words. Use full sentences and write your interpretation of the results to be as clear as possible to a non-academic audience.
 
-Intercept: Non-MPA sites have an average lobster count of ~15.
-treat: The creation of an MPA (treatment) increases the lobster count by an average of 37%.
+**REVISION:**
+
+Intercept: Non-MPA sites have an average lobster count of ~25.6.
+treat: The creation of an MPA (treatment) increases the lobster count by an average of 22%.
 
 **c.** Explain the statistical concept of dispersion and overdispersion in the context of this model. 
 
@@ -487,8 +504,10 @@ summ(m3_nb)
 print(paste("The intercept as a real, non-log value is", round(exp(coef(m3_nb)[1]), 2)))
 print(paste("The treat coefficient as percent change is", (round(exp(coef(m3_nb)[2]), 2) - 1) * 100, "%."))
 ```
-Intercept: At Non-MPA sites, the lobster count on average is ~15.
-treat: The creation of an MPA increases lobster count by ~37%, on average.
+**REVISION:**
+
+Intercept: At Non-MPA sites, the lobster count on average is ~25.6.
+treat: The creation of an MPA increases lobster count by ~22%, on average.
 
 Comparison: These results are incredibly similar to the Poisson model, with the Poisson model having a slightly smaller p-value. The intercept terms also match that of the OLS regression, but it is more difficult to compare the coefficient estimate across models as Poisson and Negative-Binomial produce results in units of percent change, whereas our OLS intercept directly represents lobster count. 
 
@@ -525,9 +544,14 @@ export_summs(m1_ols, m2_pois, m3_nb,
 ```
 
 **c.** Write a short paragraph comparing the results. Is the treatment effect `robust` or stable across the model specifications. 
+
 Like was mentioned before, intercept estimates are very similar across all three of the models. The treatment term in the OLS model is a lot larger than that of the Poisson and NB models (5.67 compared to 1.38). The mismatch of the data's distribution to the assumptions of the model may have produced these skewed results.
 
 Despite differences in estimates, the treatment effect is robust across the model specifications. We know this because in all models the effect produces statistically significant coefficient estimates, suggesting that MPAs have an observable effect on lobster count across these study sites.
+
+**REVISION:** In terms of performance, models differ in their statistical significance and p-values. Specifically, the Poisson model has the most significant coefficient (significant with level alpha = 0.001). This is to be expected, as the Poisson model is known to overestimate significance since it does not consider over-dispersion in its model and results. When it incorrectly assumes that variance and mean are equal, it underestimates standard error. 
+
+The OLS and NB models are both statistically significant at a 95% confidence level. This is important to note because it highlights that models can produce significant results even if the underlying data distribution does not match model assumptions.  
 
 ------------------------------------------------------------------------
 
@@ -560,7 +584,7 @@ summ(m5_fixedeffs, model.fit = FALSE)
 
 **c.** Take a look at the regression output. Each coefficient provides a comparison or the difference in means for a specific sub-group in the data. Informally, describe the what the model has estimated at a conceptual level (NOTE: you do not have to interpret coefficients individually)
 
-Generally, treatment has an increasing effect on lobster counts across all years. It is difficult to discern an exact pattern that emerges in yearly increments, though the effect does increase from 1.13 to 1.76 across the 5 year period. This suggests that MPAs get more and more effective with each year.
+**REVISION:** Generally, treatment has an increasing effect on lobster counts across all years. It is difficult to discern an exact pattern that emerges in yearly increments, though the effect does increase from 1.18 to 2.09 across the 5 year period. This suggests that MPAs get more and more effective with each year.
 
 **d.** Explain why the main effect for treatment is negative? *Does this result make sense?
 
@@ -636,13 +660,22 @@ Because there is no exact control/baseline for measuring MPA effectiveness, the 
 
 d. Discuss the following causal inference assumptions in the context of the MPA treatment effect estimator. Evaluate if each of the assumption are reasonable: 
     
-    1) SUTVA: Stable Unit Treatment Value assumption 
+    1) SUTVA: Stable Unit Treatment Value assumption (**REVISION**)
     
-    This assumption suggests that MPA status (treatment) of a site would not effect have an effect on another sites lobster count. The sites are not directly next to each other, though they are quite close. Additionally, the two MPA sites -- Isla Vista and Naples -- are located next to each other, relative to the other sites. It is possible that ecological health of one area *could* have an impact on the health (or spiny lobster count) of another, as the ocean's systems are very interconnected. Therefore, I do not believe that this assumption is completely met in this study (though meeting it, might reduce ceteris pareibus).
+    SUTVA includes two conditions: 
+      1. No interference: One unit’s treatment does not affect another unit’s outcome. 
+      
+      This assumption suggests that MPA status (treatment) of a site would not effect have an effect on another sites lobster count. The sites are not directly next to each other, though they are quite close. Additionally, the two MPA/treatement sites -- Isla Vista and Naples -- are located right next to one another. It is possible that ecological health of one area *could* have an impact on the health (or spiny lobster count) of another, as the ocean's systems are very interconnected. Therefore, I do not believe that this assumption is reasonable to assume in this study.
+      
+      2. No hidden variation: The treatment is implemented consistently for all units (i.e., all units receive the same treatment)
+
+    Both the Isla Vista and Naples sites were determined MPAs at the same time, but it is difficult to guarantee that each MPA gets respected/implemented in the same way. Since there are no physical barriers keeping people from fishing/damaging the areas, it is impossible to know whether to know if designation is working in the same exact way at both sites. However, out of the two SUTVA assumptions, I feel as though that this one is more reasonable to assume.
     
-    2) Excludability assumption
     
-    The excludability assumption suggests that MPA status only affects spiny lobster count through the mechanism of them reducing human activities that impact their populations. From my knowledge of MPAs and their regulations, it seems that this assumption is reasonable. 
+    2) Exogeneity assumption (**REVISION**)
+    
+    The exogeneity assumption suggests that our variable of interest (MPA status) is unrelated to unobserved factors (ecosystem charactertistics, for example) that could influence lobster abundance. In this case, the exogeneity assumption is not met. As alluded to in Question 1, selection bias that stems from the assignment of MPA could potentially link to the ecology and habitats that our sites contain. It is possible, for example, that Isla Vista and Naples are perfect ecosystems for the California spiny lobster (and our control sites are not), which is *why* they were made MPA sites. In this case, the suitability of habitat affects our variable of interest, meaning the exogeneity assumption is not met.  
+    Random assignment is a method of meeting the exogeneity assumption, which was not utilized in this study.
 
 ------------------------------------------------------------------------
 

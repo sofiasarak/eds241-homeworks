@@ -134,14 +134,19 @@ We will start by evaluating the 2007 survey (cross-sectional) data. Treatment is
 
 ```{r}
 
-match_data <- 
+match_data <- read_csv(here("hw2/data/stokes15_survey2007.csv")) %>% 
+  clean_names() %>% 
+  mutate(precinct_id = as.factor(precinct_id),
+         district_id = as.factor(district_id))
     
 ```
 
 
 **2A.Q1** Intuition check: **Why match?** Explain rationale for using this method. 
 
-*Response:* _________________________
+*Response:* They is a mismatch between size and number of precincts between years
+
+We are using matching because precincts vary in size and population between the two years. Mtaching the data allows for us to control for the data for variables like the average home price pretreatment in 2006 (log), the population with a university degree (%), median income (log), and population density (log).
 
 ------------------------------------------------------------------------
 
@@ -154,24 +159,34 @@ match_data <-
 
 ```{r}
 
-match_data %>%
+match_data %>% select(
+    proposed_turbine_3km, log_home_val_07, p_uni_degree, log_median_inc, log_pop_denc) %>%
+  tbl_summary(
+    by = proposed_turbine_3km,
+    statistic = list(
+      all_continuous() ~ "{mean} ({sd})",
+      all_categorical() ~ "{n} ({p}%)"
+    )
+  ) %>%
+  modify_header(label ~ "**Covariate**") %>%
+  modify_spanning_header(c("stat_1", "stat_2") ~ "**Group**")
 
 ```
 
 
 **2B.Q1** Summarize the table output: Which covariates look balanced/imbalanced?
 
-*Response:* _________________________
+*Response:* Home value, population with a university degree (%), and median income are look pretty balanced, but there is a difference in population density betwee the two years. Another factor is that the number of precincts in the control group is a lot (~16 times) higher than that of the treatment.
 
 **2B.Q2** Describe in your own words why these covariates might be expected to confound the treatment estimate: 
 
-*Response (2-4 sentences):* _________________________
+*Response (2-4 sentences):* Variables like university degree, home value, median income, and population density all impact voting behavior. For example, past literature has suggested that higher education levels corresponds to more left-leaning beliefs (CITE). If there are underlying differences in these variables, regardless of proximity to a proposed turbine, our model might be capturing the effects of those variables, instead of our variable of interest.
 
 ------------------------------------------------------------------------
 
 **2B.Q3** Intuition check: What type of data do you need to conduct a matching analysis? 
 
-*Response:* _________________________
+*Response:* Ideal data context for a matching analysis involves a lot of control observations (relative to treatment observations), and a large number of pre-treatment covariates. Our data has these characteristics: we have a significant number of measurements/covariates to match our data by, and also a large number of control observations (5,619) to treatment (354). 
 
 ------------------------------------------------------------------------
 
@@ -201,7 +216,7 @@ Learning goals:
 set.seed(2412026)
 
 match_model <- matchit(
-     # Treatment_indicator ~  Pre_treatment_covariates
+  formula = proposed_turbine_3km ~ log_home_val_07 + p_uni_degree + log_median_inc +log_pop_denc,
   data = match_data, 
   method = "nearest",       # Nearest neighbor matching
   distance = "mahalanobis", # Mahalanobis distance
@@ -220,7 +235,11 @@ summary(match_model)
 
 **2C.Q1** Using the `summary()` output: Which covariate had the largest and smallest `Std. Mean Diff.` before matching. Next, compare largest/smallest `Std. Mean Diff.` after matching. 
 
-*Response:* _________________________
+*Response:* 
+
+Before matching: `log_median_inc` has the smallest `Std. Mean Diff` and `log_pop_denc` has the highest. It makes sense that `log_pop_denc` has the largest difference at it appeared most imbalanced in our summary table.
+
+After matching: `log_median_loc` still has the smallest `Std. Mean Diff` after matching, and `log_pop_denc` has the largest. However, both differences decreased.
 
 
 ------------------------------------------------------------------------
@@ -254,7 +273,7 @@ love.plot(match_model, stats = "mean.diffs",
 
 **2D.Q1** Interpret the love plot in your own words:
 
-*Response:* _________________________
+*Response:* Our matching was successful, because the adjusted points are within the standardized mean differences threshold (denoted with dashed lines). We can also visually see the difference in standardized mean differences before and after the matching, and we can see that all absolute differences decreased/approached zero. 
 
 ------------------------------------------------------------------------
 
@@ -271,8 +290,20 @@ love.plot(match_model, stats = "mean.diffs",
 
 set.seed(2412026)
 
-propensity_scores <- 
+propensity_scores  <- matchit(
+  formula = proposed_turbine_3km ~ log_home_val_07 + p_uni_degree + log_median_inc +log_pop_denc,
+  data = match_data, 
+  method = "neares",       # Nearest neighbor matching
+  distance = "logit", # Mahalanobis distance
+  ratio = 1,                # Match one control unit to one treatment unit (1:1 matching)
+  replace = FALSE           # Control observations are not replaced
+)
     
+# Extract matched data
+prop_score_data <- match.data(propensity_scores)
+
+summary(propensity_scores)
+
 ```
 
 ------------------------------------------------------------------------
@@ -284,15 +315,20 @@ propensity_scores <-
 Use `bal.tab()` to report balance before and after matching.
 
 ```{r}
-
+# produces Std. Mean Diff of matched data (based on propensity scores)
 bal.tab(propensity_scores, 
         var.names = new_names) 
-
 ```
+
+```{r}
+bal.tab(match_model, 
+        var.names = new_names) 
+```
+
 
 **2E.Q1** Compare Mahalanobis vs propensity score matching. Which method did a better job at achieving balance?
 
-*Response:* _________________________
+*Response:* Mahalanobis matching did a better job at achieving balance, because the ajdusted differences are smaller (closer to 0) in that model than the propensity score matching model.
 
 ------------------------------------------------------------------------
 
@@ -301,23 +337,24 @@ bal.tab(propensity_scores,
 Using the matched data (Mahalanobis method), estimate the effect of treatment on the change in incumbent vote share (`change_liberal`).
 
 ```{r}
+# Adding additional covariates is unnecessary as matched data controls for them
+reg_match <- lm(change_liberal ~ proposed_turbine_3km,
+                     data = match_data) 
 
-reg_match <- 
-
-#summ(, model.fit = FALSE)
+summ(reg_match, model.fit = FALSE)
 ```
 
 **2F.Q1** Have you identified a causal estimate using this approach: Why or why not? 
 
-*Response:* _________________________
+*Response:* The near-zero p-value suggests that our estimate is statistically significant, and that distance to a proposed wind turbine has a causal effect on voting behavior (specifically, `change_liberal`, or the percent of the population that changed to a liberal viewpoint). Because we used a matching method, we can assume that we adjusted for covariates that may have affected our outcome oustide of the treatment.
 
 **2F.Q2** When using a matching method, what is the main threat to causal identification?
 
-*Response:* _________________________
+*Response:* The main threat to causal identification using a matching method is that the matching method does not solve the problem of selection on unobservables. Variables we did not control for/match on may still be affecting our outcome.
 
 **2F.Q3** Describe why the treatment estimate represents the `Average Treatment for the Treated (ATT)` and explain why this is the case relative to estimation of the `Average Treatment Effect (ATE)`.
 
-*Response:* _________________________
+*Response:* This treatment estimate represents the ATT because it only measures the impact of the treatment on those that received the treatment, not the entire population. This is because our matching method specifically selects controls that are representative of our treatment group. In the of using the matching data, regression model results would represent ATE, or the impact of treatment across an entire population.
 
 ------------------------------------------------------------------------
 
@@ -331,7 +368,10 @@ reg_match <-
 
 ```{r}
 
-panel_data <- 
+panel_data <- read_csv(here("hw2/data/Stokes15_panel_data.csv")) %>% 
+  clean_names() %>% 
+  mutate(precinct_id = as.factor(precinct_id),
+         year = as.factor(year))
 
 # HINT: Try running `tabyl(panel_data$year)`. Review article to make sense of the row numbers (n).
 
@@ -339,18 +379,22 @@ panel_data <-
 
 **3A.Q1:** Why are there 18,558 rows in `panel_data`?
 
-*Response:* _________________________
+*Response:* There are 6186 precints, and we have observations for all of them across 3 years (2003, 2007, and 2011). 6186, 3 times, is 18,558. These repeating of observations across different time points is characteristic of panel data.
 
 ```{r}
 # How many years are included in the panel?
+length(unique(panel_data$year))
 
 # How many precincts are there?
+length(unique(panel_data$precinct_id))
 
 ```
+There are 3 years and 6186 precincts in this data.
+
 
 **3A.Q2:** How many unique precincts are *ever treated* (i.e., `proposed` & `operational`)?
 
-*Response:* _________________________
+*Response:* There are 184 precincts that have been proposed and 52 that have been operational, meaning 236 (184 + 52) is the number of unique precincts that are ever treated in this data.
 
 ```{r}
 
@@ -432,7 +476,9 @@ ggplot(aes(year, mean, color = status, group = status)) +
 
 **3B.Q1:** Write a short paragraph assessing the parallel trends assumption for each outcome.
 
-*Response (4-6 sentences):* _________________________
+*Response (4-6 sentences):* Assuming that the period between 2007 and 2011 is the treatment period, we can see that between 2003 and 2007 liberal party vote share trends were parallel for both proposed and operational turbines. In the proposed turbines plot the two trends (control and treated) look nearly identical visually, and in the operational turbines plot they differ slightly, but are still relatively parallel. In both plots, these similarities stop in the 2007 and 2011 period (when the treatment was enacted), and trends change between control and treated groups.
+
+It is important to note there are very few data points in this plot, so trends within 2003 and 2007 are parallel on average across the 5 years, but there is no guarantee that they follow the same cycles, etc. Having so few data points does not control for other attributes that may have affect liberal party vote share between the two years. More data points would in this plot would create a more robust parallel trends comparison.
 
 ------------------------------------------------------------------------
 
@@ -485,24 +531,37 @@ sample_40_precincts <- panel_data %>%
 #### **3C:** Estimate a fixed effects model using `lm()` with fixed effects added for `precinct` and `year` using the sample of 40 precincts just created.
 
 ```{r}
-model1_ff <- 
+model_prop_ff <- lm(data = sample_40_precincts, 
+                formula = perc_lib ~ proposed_turbine + precinct_id + year)
 
-# summ(*** , model.fit = FALSE)
+model_op_ff <- lm(data = sample_40_precincts, 
+                formula = perc_lib ~ proposed_turbine + operational_turbine + precinct_id + year)
+
+summ(model1_ff, model.fit = FALSE)
 ```
 
 ```{r}
-# summ(*** , model.fit = FALSE, [. . .])
+summ(model1_ff , model.fit = FALSE, digits = 3)
 ```
 
 **3C.Q1:** Intuition check: Is the *signal-to-noise* ratio for the treatment estimate greater than *2-to-1*?
 
-*Response:* _________________________
+*Response:* The signal-to-noise ratio for the treatment estimate is smaller than 2-to-1. We know this because many of the standard errors in our regression are more than 1/2 of the value of the coefficient estimates, and some even exceed them. 
 
 > HINT: Add the argument `digits = 3` to the `summ()` function above
 
 **3C.Q2:** Re-run the `summ()` function using the *heteroscedasticiy robust standard error adjustment* (`robust = TRUE`). Did the standard error (S.E.) estimates change? Explain why. 
 
-*Response:* _________________________
+*Response:* Standard error estimates increase. Heteroskedasticity occurs when different observations have different error variance. This is most likely in our model because our observations are not independent -- repeated measurements in one place suggest correlated errors. By adjusting our model to `robust = TRUE`, we make the model 
+
+```{r}
+summ(model_prop_ff , model.fit = FALSE, digits = 3)
+```
+
+
+```{r}
+summ(model_prop_ff , model.fit = FALSE, digits = 3, robust = TRUE)
+```
 
 **3C.Q3:** Compare results of the model above to the findings from the fixed effects analysis in the Stokes (2015) study. Why might the results be similar or different? 
 
@@ -510,7 +569,7 @@ model1_ff <-
 
 **3C.Q4:** In your own words, explain why it is advantageous from a causal inference perspective to include year and precinct fixed effects. Explain how between-level and within-level variance is relevant to the problem of omitted variable bias (OVB). 
 
-*Response (2-4 sentences):* _________________________
+*Response (2-4 sentences):* Fixed effects remove omitted variable bias sources from factors that are time-invariant. Specifically, a precinct's predisposition to vote liberal does not necessarily depend on time. By controlling for precinct, we also control for differences within precincts that may affect our outcome variable, liberal party vote share. These controls only leave differences within groups in our model, and removes the effect of all differences between groups.
 
 ------------------------------------------------------------------------
 

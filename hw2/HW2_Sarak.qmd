@@ -87,9 +87,9 @@ Be sure to include a brief description of each of the following key elements of 
 
 *Response:*
 
-This paper explores retrospective voting on public policies that divide citizens' preference, specifically using the spatial properties of electoral voting to investigate "spatially distorted signalling." Spatial distorted signalling occurs where there is concentrated, local opposition and diffuse, public on a certain policy, which signals to the government to adjust a policy that the majority supports. The study leverages a recent climate policy as a natural experiment to test whether citizens retrospectively punish governments for policies with concentrated local costs and diffuse public benefits.
+This paper explores retrospective voting on public policies that divide citizens' preference, specifically using the spatial properties of electoral voting to investigate "spatially distorted signalling." Spatial distorted signalling occurs where there is concentrated, local opposition and diffuse, public support of a certain policy, which signals to the government to adjust a policy that the majority supports. The study leverages a recent climate policy as a natural experiment to test whether citizens retrospectively punish governments for policies with concentrated local costs and diffuse public benefits.
 
-The intervention being evaluated is the expansion of the Green Energy Act in Ontario, Canada, which occurred in 2009. The expansion allowed for corporations, communities, and individuals to build wind turbines and other renewable energy projects throughout the province, signing long-term contracts with the government to sell their energy. The outcome of interest is the effect of the policy on liberal voting party share, specifically in precincts that experienced proposed or operational wind turbines.
+The intervention being evaluated is the expansion of the Green Energy Act in Ontario, Canada, which occurred in 2009. The expansion allowed for corporations, communities, and individuals to build wind turbines and other renewable energy projects throughout the province, signing long-term contracts with the government to sell their energy. The outcome of interest is the effect of the policy on liberal, or incumbent, voting party share.
 
 Unit of analysis: The precinct, where electors cast their vote for their provincial representative at a nearby polling place. The study included 6,186 of these, which made up 26 (out of 107) districts where wind projects were proposed or operational.
 
@@ -101,9 +101,9 @@ Comparison group: Precincts in the 26 districts that were included in the data s
 
 *Response:* 
 
-1. When a turbine is proposed or becomes operational, that may lead to an influx of new residents that hope to find jobs maintaining the wind turbine. It is possible that this influx of residents comes from a specific political background (for example, people who work on wind farms are more likely to be liberal), skewing the results. This is confounding because change in liberal party voting share comes from this new population, and not from the people who had lived there before.
+1. When a turbine is proposed or becomes operational, that may lead to an influx of new residents that hope to find jobs maintaining the wind turbine. It is possible that this influx of residents comes from a specific political background (for example, people who work on wind farms are more likely to be liberal), skewing the results. This is confounding because change in liberal party voting share comes from this new population who came **because** of the treatment, and not from the people who had lived there before.
 
-2. Rural areas tend to have a higher proportion of conservative-minded people. People of a liberal viewpoint may be surrounded by those with an opposite opinion, making it easier to vote conservative if there is a big nuisance that is developed in their neighborhood, thanks to the liberal party. This confounds the results because liberal party voting share in has the influence of neighbors' opinions, instead of just people's own thoughts on the wind turbine.
+2. Rural areas tend to have a higher proportion of conservative-minded people. People of an originally liberal viewpoint may find it easier to change their mind when 1) they experience the treatment, and 2) have people around them who already oppose it. This confounds the results because in this scenario liberal party voting share is influenced by neighbors' opinions, instead of just people's own thoughts on the wind turbine.
 
 ------------------------------------------------------------------------
 
@@ -127,7 +127,7 @@ Comparison group: Precincts in the 26 districts that were included in the data s
 
 **1B.Q5** How do the authors assess the risk of spillovers, and what analytic choice do they make to attempt to mitigate the risk that spillover biases the causal estimate?
 
-*Response:* The study addresses the risk of spillovers by calculating the average treatment effect within precinct groups 1km-increments away from proposed or operational turbines. (The idea being, that people do not like visible infrastructure). They find that, for both proposed and operational wind turbines, vote share declines can be detected in precincts up to 3 km away from the turbines. For precincts 4 and 5 km away from the turbines, the effects are indistinguishable. This serves as a spillover test, and can be used in the interpretation of results.
+*Response:* The study addresses the risk of spillovers by calculating the average treatment effect within precinct groups 1km-increments away from proposed or operational turbines. (Testing the idea that people do not like visible infrastructure). They find that, for both proposed and operational wind turbines, vote share declines can be detected in precincts up to 3 km away from the turbines. For precincts 4 and 5 km away from the turbines, the effects are indistinguishable. This serves as a spillover test, and can be considered in the interpretation of results.
 
 ------------------------------------------------------------------------
 
@@ -157,7 +157,7 @@ match_data <- read_csv(here("hw2/data/stokes15_survey2007.csv")) %>%
 
 **2A.Q1** Intuition check: **Why match?** Explain rationale for using this method. 
 
-*Response:* They is a mismatch between size and number of precincts between years
+*Response:* There is a mismatch between size and number of precincts between years
 
 We are using matching because precincts vary in size and population between the two years. Matching the data allows for us to control for the data for variables like the average home price pretreatment in 2006 (log), the population with a university degree (%), median income (log), and population density (log).
 
@@ -172,7 +172,7 @@ We are using matching because precincts vary in size and population between the 
 
 ```{r}
 
-match_data %>% select(
+balance_table <- match_data %>% select(
     proposed_turbine_3km, log_home_val_07, p_uni_degree, log_median_inc, log_pop_denc) %>%
   tbl_summary(
     by = proposed_turbine_3km,
@@ -183,17 +183,17 @@ match_data %>% select(
   ) %>%
   modify_header(label ~ "**Covariate**") %>%
   modify_spanning_header(c("stat_1", "stat_2") ~ "**Group**")
-
 ```
 
+![](images/balance_table.png)
 
 **2B.Q1** Summarize the table output: Which covariates look balanced/imbalanced?
 
-*Response:* Home value, population with a university degree (%), and median income are look pretty balanced, but there is a difference in population density betwee the two years. Another factor is that the number of precincts in the control group is a lot (~16 times) higher than that of the treatment.
+*Response:* Home value, population with a university degree (%), and median income are look pretty balanced, but there is an imbalance in population density betwee the two years. Another factor is that the number of precincts in the control group is a lot (~16 times) higher than that of the treatment.
 
 **2B.Q2** Describe in your own words why these covariates might be expected to confound the treatment estimate: 
 
-*Response (2-4 sentences):* Variables like university degree, home value, median income, and population density all impact voting behavior. For example, past literature has suggested that higher education levels corresponds to more left-leaning beliefs (CITE). If there are underlying differences in these variables, regardless of proximity to a proposed turbine, our model might be capturing the effects of those variables, instead of our variable of interest.
+*Response (2-4 sentences):* Variables like university degree, home value, median income, and population density all impact voting behavior. For example, it is often suggested that higher education levels corresponds to more left-leaning beliefs. If there are underlying differences in these variables, regardless of proximity to a proposed turbine, our model might be capturing the effects of those variables, instead of our variable of interest.
 
 ------------------------------------------------------------------------
 
@@ -250,9 +250,9 @@ summary(match_model)
 
 *Response:* 
 
-Before matching: `log_median_inc` has the smallest `Std. Mean Diff` and `log_pop_denc` has the highest. It makes sense that `log_pop_denc` has the largest difference at it appeared most imbalanced in our summary table.
+**Before matching:** `log_median_inc` has the smallest `Std. Mean Diff` and `log_pop_denc` has the highest. It makes sense that `log_pop_denc` has the largest difference at it appeared most imbalanced in our summary table.
 
-After matching: `log_median_loc` still has the smallest `Std. Mean Diff` after matching, and `log_pop_denc` has the largest. However, both differences decreased.
+**After matching:** `log_median_loc` still has the smallest `Std. Mean Diff` after matching, and `log_pop_denc` has the largest. However, both differences decreased.
 
 
 ------------------------------------------------------------------------
@@ -286,7 +286,7 @@ love.plot(match_model, stats = "mean.diffs",
 
 **2D.Q1** Interpret the love plot in your own words:
 
-*Response:* Our matching was successful, because the adjusted points are within the standardized mean differences threshold (denoted with dashed lines). We can also visually see the difference in standardized mean differences before and after the matching, and we can see that all absolute differences decreased/approached zero. 
+*Response:* Our matching was successful, because the adjusted points are within the standardized mean differences threshold (denoted with dashed lines). We can also visually see the change in standardized mean differences before and after the matching, and we can see that all absolute differences decreased/approached zero. 
 
 ------------------------------------------------------------------------
 
@@ -359,7 +359,7 @@ summ(reg_match, model.fit = FALSE)
 
 **2F.Q1** Have you identified a causal estimate using this approach: Why or why not? 
 
-*Response:* The near-zero p-value suggests that our estimate is statistically significant, and that distance to a proposed wind turbine has a causal effect on voting behavior (specifically, `change_liberal`, or the percent of the population that changed to a liberal viewpoint). Because we used a matching method, we have adjusted for covariates that we believe may have affected our outcome outside of the treatment. However, in this analysis we do not know if we have controlled for every influential variables, making it difficult to confirm that this estimate is truly causal.
+*Response:* The near-zero p-value suggests that our estimate is statistically significant, and that distance to a proposed wind turbine has a causal effect on voting behavior (specifically, `change_liberal`, or the percent of the population that changed to a liberal viewpoint). Because we used a matching method, we have adjusted for covariates that we believe may have affected our outcome outside of the treatment. However, in this analysis we do not know if we have controlled for **every** influential variables, making it difficult to confirm that this estimate is truly causal.
 
 **2F.Q2** When using a matching method, what is the main threat to causal identification?
 
@@ -367,7 +367,7 @@ summ(reg_match, model.fit = FALSE)
 
 **2F.Q3** Describe why the treatment estimate represents the `Average Treatment for the Treated (ATT)` and explain why this is the case relative to estimation of the `Average Treatment Effect (ATE)`.
 
-*Response:* This treatment estimate represents the ATT because it only measures the impact of the treatment on those that received the treatment, not the entire population. This is because our matching method specifically selects controls that are representative of our treatment group. In the of using the matching data, regression model results would represent ATE, or the impact of treatment across an entire population.
+*Response:* This treatment estimate represents the ATT because it only measures the impact of the treatment on those that received the treatment, not the entire population. This is because our matching method specifically selects controls that are representative of our treatment group. By using the original, un-matched data, a regression model could represent ATE, or the impact of treatment across an entire population, but may do a poorer job of controlling for covariates.
 
 ------------------------------------------------------------------------
 
@@ -407,7 +407,7 @@ There are 3 years and 6186 precincts in this data.
 
 **3A.Q2:** How many unique precincts are *ever treated* (i.e., `proposed` & `operational`)?
 
-*Response:* There are 184 precincts that have been proposed and 52 that have been operational, meaning 236 (184 + 52) is the number of unique precincts that are ever treated in this data.
+*Response:* There are 184 precincts that have had proposed turbines and 52 that have had operational ones, meaning 236 (184 + 52) is the number of precincts that are ever treated in this data. 
 
 ```{r}
 
@@ -491,7 +491,7 @@ ggplot(aes(year, mean, color = status, group = status)) +
 
 *Response (4-6 sentences):* Assuming that the period between 2007 and 2011 is the treatment period, we can see that between 2003 and 2007 liberal party vote share trends were parallel for both proposed and operational turbines. In the proposed turbines plot the two trends (control and treated) look nearly identical visually, and in the operational turbines plot they differ slightly, but are still relatively parallel. In both plots, these similarities stop in the 2007 and 2011 period (when the treatment was enacted), and trends change between control and treated groups.
 
-It is important to note there are very few data points in this plot, so trends within 2003 and 2007 are parallel on average across the 5 years, but there is no guarantee that they follow the same cycles, etc. Having so few data points does not control for other attributes that may have affect liberal party vote share between the two years. More data points would in this plot would create a more robust parallel trends comparison.
+It is important to note there are very few data points in this plot, so trends within 2003 and 2007 are parallel on average across the 5 years, but there is no guarantee that they follow the same cycles, etc. Having so few data points does not control for other attributes that may have affect liberal party vote share between the two years. More data points in this plot would create a more robust parallel trends comparison.
 
 ------------------------------------------------------------------------
 
@@ -556,10 +556,11 @@ summ(model_op_ff , model.fit = FALSE, digits = 3)
 **3C.Q1:** Intuition check: Is the *signal-to-noise* ratio for the treatment estimate greater than *2-to-1*?
 
 *Response:* 
-Proposed turbines: The signal-to-noise ratio for the treatment estimate is smaller than 2-to-1. We know this because the standard error of `proposed_turbine` (0.031) is more than 1/2 of the value of its coefficient estimate (|-0.057|). 
+
+**Proposed turbines:** The signal-to-noise ratio for the treatment estimate is smaller than 2-to-1. We know this because the standard error of `proposed_turbine` (0.031) is more than 1/2 of the value of its coefficient estimate (|-0.057|). 
 
 
-Operational turbines: The signal-to-noise ratio for the treatment estimate is smaller than 2-to-1. We know this because the standard error of `operational_turbine` (0.054) is more than 1/2 of the value of its coefficient estimate (|-0.106|). 
+**Operational turbines:** The signal-to-noise ratio for the treatment estimate is smaller than 2-to-1. We know this because the standard error of `operational_turbine` (0.054) is more than 1/2 of the value of its coefficient estimate (|-0.106|). 
 
 > HINT: Add the argument `digits = 3` to the `summ()` function above
 

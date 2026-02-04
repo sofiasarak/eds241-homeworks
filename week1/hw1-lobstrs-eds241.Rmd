@@ -144,10 +144,7 @@ Create new `df` named `spiny_counts`
 
 spiny_counts <- tidydata %>% 
   
-  # Dropping NAs in mean_size
-  drop_na(size_mm) %>% 
-  
-  # Create rows with all site-year-transect combinations
+ # Create rows with all site-year-transect combinations
   group_by(reef, year, transect) %>% 
   
   # Add `counts` and `mean_size` columns

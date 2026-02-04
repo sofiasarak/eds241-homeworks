@@ -523,7 +523,6 @@ ids_40 <- precinct_frame %>%
 
 sample_40_precincts <- panel_data %>%
   semi_join(ids_40, by = "precinct_id")
-
 ```
 
 ------------------------------------------------------------------------
@@ -531,18 +530,22 @@ sample_40_precincts <- panel_data %>%
 #### **3C:** Estimate a fixed effects model using `lm()` with fixed effects added for `precinct` and `year` using the sample of 40 precincts just created.
 
 ```{r}
+# Run lm() on proposed turbine projects
 model_prop_ff <- lm(data = sample_40_precincts, 
                 formula = perc_lib ~ proposed_turbine + precinct_id + year)
 
-model_op_ff <- lm(data = sample_40_precincts, 
-                formula = perc_lib ~ proposed_turbine + operational_turbine + precinct_id + year)
-
-summ(model1_ff, model.fit = FALSE)
+summ(model_prop_ff, model.fit = FALSE, digits = 3)
 ```
+
 
 ```{r}
-summ(model1_ff , model.fit = FALSE, digits = 3)
+# Run lm() on operational tubine projects
+model_op_ff <- lm(data = sample_40_precincts, 
+                formula = perc_lib ~ operational_turbine + precinct_id + year)
+
+summ(model_op_ff , model.fit = FALSE, digits = 3)
 ```
+
 
 **3C.Q1:** Intuition check: Is the *signal-to-noise* ratio for the treatment estimate greater than *2-to-1*?
 
@@ -552,16 +555,17 @@ summ(model1_ff , model.fit = FALSE, digits = 3)
 
 **3C.Q2:** Re-run the `summ()` function using the *heteroscedasticiy robust standard error adjustment* (`robust = TRUE`). Did the standard error (S.E.) estimates change? Explain why. 
 
-*Response:* Standard error estimates increase. Heteroskedasticity occurs when different observations have different error variance. This is most likely in our model because our observations are not independent -- repeated measurements in one place suggest correlated errors. By adjusting our model to `robust = TRUE`, we make the model 
-
-```{r}
-summ(model_prop_ff , model.fit = FALSE, digits = 3)
-```
-
-
 ```{r}
 summ(model_prop_ff , model.fit = FALSE, digits = 3, robust = TRUE)
 ```
+
+```{r}
+summ(model_op_ff , model.fit = FALSE, digits = 3, robust = TRUE)
+```
+
+
+*Response:* Standard error estimates increase. Heteroskedasticity occurs when different observations have different error variance. This is most likely in our model because our observations are not independent -- repeated measurements in one place suggest correlated errors. By adjusting our model to `robust = TRUE`, we make the model 
+
 
 **3C.Q3:** Compare results of the model above to the findings from the fixed effects analysis in the Stokes (2015) study. Why might the results be similar or different? 
 
@@ -569,7 +573,7 @@ summ(model_prop_ff , model.fit = FALSE, digits = 3, robust = TRUE)
 
 **3C.Q4:** In your own words, explain why it is advantageous from a causal inference perspective to include year and precinct fixed effects. Explain how between-level and within-level variance is relevant to the problem of omitted variable bias (OVB). 
 
-*Response (2-4 sentences):* Fixed effects remove omitted variable bias sources from factors that are time-invariant. Specifically, a precinct's predisposition to vote liberal does not necessarily depend on time. By controlling for precinct, we also control for differences within precincts that may affect our outcome variable, liberal party vote share. These controls only leave differences within groups in our model, and removes the effect of all differences between groups.
+*Response (2-4 sentences):* Fixed effects remove omitted variable bias sources from factors that are time-invariant. Specifically, a precinct's predisposition to vote liberal does not necessarily depend on time. By controlling for precinct, we also control for differences within precincts that may affect our outcome variable, which is liberal party vote share. These controls leave only the differences *within* groups in our model, and removes the effect of all differences between groups.
 
 ------------------------------------------------------------------------
 
@@ -578,33 +582,33 @@ summ(model_prop_ff , model.fit = FALSE, digits = 3, robust = TRUE)
 See vignette here: [fixest walkthrough](https://cran.r-project.org/web/packages/fixest/vignettes/fixest_walkthrough.html#11_Estimation)
 
 ```{r}
+model2_ff <- feols(perc_lib ~ proposed_turbine | precinct_id + year, panel_data)
 
-model2_ff <- 
-
-summary()
+summary(model2_ff, cluster = ~precinct_id)
 ```
 
 **3D.Q1:** Interpret the model results and translate findings to be clear to an audience that may not have a background in causal inference (Econometrics) methods.
 
+*Response:* We are 99% confident that a proposed wind turbine project in a precinct decreases its liberal party vote share by ~0.04%, on average.
+
 In panel data settings, why is clustering by precinct important (i.e., `cluster = ~precinct_id`) ?”
 
-*Response (4-6 sentences):* _________________________
+*Response (4-6 sentences):* Panel data contains multiple observations for the same individuals (in this case, precincts). In order to make our statistical analyses accurate, we must tell our model that observations that share the same precinct value are **not** independent observations. Clustering by precinct is important because it tells the model to treat each precinct as one, even if it has values over multiple years. Without clustering, we may get inaccurate values, such as where our standard errors are too small and we see significant results where they do not actually exist. Essentially, clustering accounts for within-precinct correlation and makes our model more accurate.
 
 ------------------------------------------------------------------------
 
 #### **3E.** Estimate the treatment effect of *operational wind turbines* on incumbent vote share. Use the same approach as the previous model.
 
 ```{r}
+model3_ff <- feols(perc_lib ~ operational_turbine | precinct_id + year, panel_data)
 
-model3_ff <- 
-
-summary()
+summary(model3_ff, cluster = ~precinct_id)
 ```
 
 
 **3E.Q1:** Interpret the `model3_ff` results as clearly and **concisely** as you can.
 
-*Response:* _________________________
+*Response:* We are 99% confidence that the presence of operational wind turbines in a precinct decreases liberal party vote share by ~0.09%, on average. 
 
 **3E.Q2:** Why do you think the effect of proposed wind turbines is different from operational wind turbines. Develop your own theory about why incumbent vote share is affected in this way. Use the Stokes (2015) study to inform your response as needed. 
 

@@ -1,0 +1,234 @@
+---
+title: "Assignment 3: Instrumental Variable Estimation"
+subtitle: "Replicating the IV strategy in Stokes (2015)"
+author: "EDS 241 / ESM 244 (DUE: 2/17/2026)"
+format:
+  html:
+    theme: sketchy
+    css: styles.css
+date: "February 10, 2026"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+
+------------------------------------------------------------------------
+
+### Assignment instructions:
+
+Working with classmates to troubleshoot code and concepts is encouraged. If you collaborate, list collaborators at the top of your submission.
+
+All written responses must be written independently (in your own words).
+
+Keep your work readable: Use clear headings and label plot elements thoughtfully (where applicable).
+
+Submit both your rendered output and the Quarto (`.qmd`) file.
+
+**Assignment submission (YOUR NAME)**: Sofia Sarak
+
+
+------------------------------------------------------------------------
+
+### Introduction
+
+In this assignment, you will replicate the instrumental variable analysis from Stokes (2015), which examined how local wind turbine projects influenced electoral outcomes. Building on the matched dataset from Assignment 2, we will use Two-Stage Least Squares (2SLS) to estimate the causal effect of having a wind turbine proposed nearby on the change in Liberal Party vote share between 2007 and 2011. The instrument used in Stokes (2015) is a measure of local wind resource (average wind power, logged), which predicts where wind turbines are proposed. By using this instrument, we aim to isolate the portion of variation in turbine placement that is as-good-as-random, helping to meet the assumptions for causal identification.
+
+**Study:** [Stokes, 2015 – Article](https://drive.google.com/file/d/1y2Okzjq2EA43AW5JzCvFS8ecLpeP6NKh/view?usp=drive_link)
+
+**Data source:** [Dataverse – Stokes, 2015 replication data](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/SDUGCC)
+
+------------------------------------------------------------------------
+
+::: callout
+Note: The estimates you obtain may not exactly match the published results in Stokes (2015) due to the alternative matching procedure used for processing the data in the previous assignment. Estimates should approximate the findings reported in *Table 2* of the article.
+:::
+
+------------------------------------------------------------------------
+
+### Load packages
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(here)
+library(jtools)   # for export_summs (pretty regression tables)
+library(AER)      # for ivreg (2SLS estimation)
+
+```
+
+------------------------------------------------------------------------
+
+### Load the matched dataset (from Assignment 2)
+
+> The matched_data has been preprocessed by matching on key covariates (e.g. pretreatment home values, education, income, population density) to improve balance between treated and control precincts. We will now use this data for the IV analysis. Make sure to re-code the `precinct_id` variable as a `factor`. 
+
+```{r}
+# Read in matched data
+matched_data <- read_csv(here("hw3/data/matched_data_subset.csv")) %>% 
+  clean_names() %>% 
+  
+  # Re-code precinct ID variable to a factor
+  mutate(precinct_id = as.factor(precinct_id))
+```
+
+------------------------------------------------------------------------
+
+### Part 1: IV Identification Rationale
+
+Intuition for Using an Instrument: 
+
+**Question 1:** After matching on observables, why might we still need to utilize an instrumental variable approach to identify the causal effect of turbine proposals on vote share? In other words, what potential issues remain that an IV method can help address in this context? Use specific examples from the study to illustrate threats to a causal interpretation, then explain how an IV approach is designed to mitigate those threats.
+
+*Response:* _________________________
+
+------------------------------------------------------------------------
+
+### Part 2: Two-Stage Least Squares (2SLS) Step-Wise Implementation
+
+#### 2A. First-Stage Estimation: Regress the treatment ($D$) on the instrument ($Z$)
+
+$$D_i = \alpha_0 + \alpha_1 Z_i $$
+
+a. Estimate the first-stage regression of the treatment on the instrument (with controls). Regress `proposed_turbine_3km` on `log_wind_power`.
+b. Include the control variables used in Stokes (2015) for both stages: Distance to lakes, geographic coordinates (latitude & longitude) with their squares and interaction, plus district fixed effects. 
+c. After running the first stage, report the F-statistic for the instrument.
+
+```{r}
+# Estimate first-stage regression: effect of wind power on proposed wind turbine
+first_stage <- lm(proposed_turbine_3km ~ log_wind_power + 
+                    # Include controls 
+                    longitude*latitude + long_sq + lat_sq + mindistlake + mindistlake_sq + 
+                    # And district fixed effects
+                    district_id,
+                  data = matched_data)
+
+# Extract summary statistics
+export_summs(first_stage, digits = 3,
+             model.names = c("First stage: Prpoposed Turbine 3km"),
+             coefs = c("(Intercept)", "log_wind_power")) 
+```
+
+###  Testing Instrument Relevance
+
+Check instrument strength (F-statistic)
+```{r}
+# Extract the F-statistic for instrument strength
+first_stage_summary <- summary(first_stage)
+
+first_stage_summary$fstatistic[1]
+```
+
+**Question 2A:** Based on the instrument relevance test reported in the study, would you conclude the instrument is strong enough to be credible? Explain what a weak instrument would mean in this setting: Specifically, what would it suggest about compliance with Ontario’s Green Energy Act policy? 
+
+*Response:* The instrument relevance test reported in the study identifies the F-statistic on the instrument to be 68. Using the rule of thumb that an F-statistic less than 10 suggests a weak relationship between the instrument variable and outcome, we can conclude that wind power is a strong instrument of proposed wind turbines. 
+
+A weak instrument in this context would suggest that compliance of Ontario's Green Energy Act policy was independent of potential wind energy at a site, which would be a bit strange as it implies that wind turbines were not being proposed at the most efficient locations for energy production (i.e., sites that are not very windy).
+
+------------------------------------------------------------------------
+
+#### 2B. Second Stage Estimation 
+
+#### Regress the outcome ($Y$) on the fitted values from the 1st stage ($\hat{X}_i$)
+
+$$Y_i = \beta_0 + \beta_1 \hat{D}_i + \epsilon_i$$
+
+a. Now estimate the second stage of the 2SLS. 
+b. First, use the first-stage model to generate the predicted values of proposed_turbine_3km for each precinct (these are $\hat{D}_i$). 
+c. Add these predicted values as a new column in matched_data (e.g. proposed_turbine_3km_HAT). 
+d. Then, regress the outcome change_liberal (the change in Liberal vote share from 2007 to 2011) on the predicted treatment (proposed_turbine_3km_HAT), including the same controls and fixed effects as in the first stage. 
+e. Fill in the code for these steps below to obtain the second-stage regression results.
+
+Save predicted values $\hat{X}_i$ from first stage 
+```{r}
+# Predict values of proposed wind turbines for each precinct, and add as column to data
+matched_data$proposed_turbine_3km_HAT <- predict(first_stage)
+```
+
+#### Estimate the second-stage regression 
+
+$$LiberalVoteShare_i = \beta_0 + \beta_1 \widehat{ProposedTurbine}_i + ControlVariables... +  \epsilon_i$$
+
+```{r}
+# Model effect of proposed turbine HAT on liberal vote share using same controls and fixed effects
+second_stage <- lm(change_liberal ~ proposed_turbine_3km_HAT + 
+                   # Include controls 
+                    longitude*latitude + long_sq + lat_sq + mindistlake + mindistlake_sq + 
+                    # And district fixed effects
+                    district_id,
+                  data = matched_data)
+
+export_summs(second_stage, digits = 3, 
+             model.names = c("Second stage: Change in Liberal Vote Share"),
+             coefs = c("(Intercept)", "proposed_turbine_3km_HAT") ) 
+```
+
+#### Interpreting the 2SLS Estimate
+
+**Question 2B:** Imagine you are explaining your 2SLS findings to a policymaker in Ontario. What does the estimated coefficient on `proposed_turbine_3km_HAT` imply about the electoral impact of a local wind turbine proposal (within 3 km) on liberal vote share?
+
+*Response:* The estimated coefficient on `proposed_turbine_3km_HAT` implies that a local wind turbine proposal (within 3 km of a precinct) decreases the change in liberal party vote share by 4.1%. However, our model does not find this estimate to be statistically significant.
+
+**Question 2C:** Explain what it means that IV identifies a LATE in the context of the wind-turbine voting study. What specific subset of observations does the second-stage 2SLS estimate apply to, and what does it imply about interpretation and generalizability? 
+
+*Response:* The instrumental variable of wind power identifies a local average treatment effect on liberal party vote share. This means that the treatment effect only applies to the precincts that had wind turbines proposed (within 3km)/complied with the treatment. In terms of interpretation, our calculated effect can not be applied or generalized to precincts that are "always-takers" or "never-takers" of wind turbine proposals due to Ontario’s Green Energy Act.
+
+------------------------------------------------------------------------
+
+### Part 3: IV Assumptions and Validity
+
+#### Evaluate Instrument Validity 
+
+**Question 3:** List the four key assumptions required for the IV strategy (2SLS) to identify a causal effect, and briefly explain what each one means in the context of this study. (Hint: think about what conditions a valid instrument must satisfy (relevance, exclusion,...)
+
+*Response:*  
+
+Relevance condition - The instrument (wind speed) must strongly predict the treatment (wind turbine placement). This was confirmed by checking instrument strength using the F-statistic in the first stage of the regression.
+Exclusion restriction - The instrument (wind speed) should not directly relate to the outcome (vote share for the incumbent government), and should only relate to the outcome through treatment. 
+Exogeneity - The instrument (wind) should not be correlated with unobservable confounds that predict the outcome (political preferences). In this study, it is possible that rural areas are correlated with higher wind power, and rural areas have a different liberal party share compared to urban areas. It is difficult to prove exogeneity in this case.
+Monotonicity - Wind power only increases the the probability of proposed wind turbines; this condition would be violated if higher winds also decreased/discouraged the likelihood of a proposed wind turbine. This does not make sense in the context of the study.
+
+------------------------------------------------------------------------
+
+### Part 4: Estimate 2SLS using `AER::ivreg()` 
+
+📜 [SEE Documentation for specification details: AER package Viggnette Example](https://cran.r-project.org/web/packages/AER/vignettes/AER.pdf)
+
+::: callout-tip
+
+Syntax for specifying 2SLS using `ivreg()`:
+
+`ivreg( Y ~ D + CONTROLS  | Z + CONTROLS , data )`
+
+- The first-stage predictor variables go after the `~` symbol
+- The second-stage predictor variables go after the `|` symbol
+- instrument variable goes after `|` symbol
+
+::: 
+
+
+```{r}
+  
+fit_2sls <- ivreg(change_liberal ~ proposed_turbine_3km + longitude*latitude + long_sq + lat_sq + mindistlake + mindistlake_sq + district_id | log_wind_power + longitude*latitude + long_sq + lat_sq + mindistlake + mindistlake_sq + district_id, data = matched_data)
+
+export_summs(fit_2sls, digits = 3,
+             model.names = c("Change in Liberal Vote Share"),
+             coefs = c("(Intercept)", "proposed_turbine_3km")
+             ) 
+```
+
+#### Robustness checking strategies utilized in Stokes, 2015
+
+**Question 4:** Choose two *robustness checks* from the paper that the authors use to increase confidence in their causal identification strategy. For each one, summarize the logic and findings from the robustness check in your own words:
+
+*Response:*
+
+1. The instrumental variable model was regressed on liberal party vote share in 2003 (pre-treatment). This tested whether wind power was correlated with voting share before the treatment, and found that it is not. This suggests further confirms that the instrument, wind power, is only related to the outcome through the proposed turbine treatment.
+
+2. 
+
+------------------------------------------------------------------------
+
+### END
+
+------------------------------------------------------------------------
